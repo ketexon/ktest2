@@ -1,0 +1,2 @@
+add_executable(ktest2_unit basic.cpp)
+target_link_libraries(ktest2_unit PRIVATE ktest2_with_main)
