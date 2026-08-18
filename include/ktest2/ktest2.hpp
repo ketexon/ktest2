@@ -17,14 +17,44 @@
 #ifndef KTEST2_DISABLE_FORMATTERS
 #include <cstddef>
 #include <format>
+#include <array>
+#include <version>
 
+// Byte is not formattable by default and can't cast to unsigned char (treats as string), so need a custom formatter
 template<>
 struct std::formatter<std::byte> : std::formatter<unsigned> {
-    auto format(std::byte b, auto& ctx) const {
-        return std::formatter<unsigned>::format(std::to_integer<unsigned>(b), ctx);
-    }
+	auto format(std::byte b, auto& ctx) const {
+		return std::formatter<unsigned>::format(std::to_integer<unsigned>(b), ctx);
+	}
 };
-#endif
+
+#if !defined(__cpp_lib_format_ranges) || __cpp_lib_format_ranges < 202207
+template<std::ranges::input_range R>
+	requires (!std::same_as<std::remove_cvref_t<std::ranges::range_reference_t<R>>, R>)
+		&& std::formattable<std::ranges::range_value_t<R>, char>
+struct std::formatter<R, char>
+	: std::formatter<std::remove_cvref_t<std::ranges::range_reference_t<R>>, char> {
+	using T = std::remove_cvref_t<std::ranges::range_reference_t<R>>;
+	using base = std::formatter<T, char>;
+
+	auto format(const R& r, auto& ctx) const {
+		auto out = ctx.out();
+		out = std::format_to(out, "[");
+		bool first = true;
+		for (auto&& e : r) {
+			if (!first) {
+				out = std::format_to(out, ", ");
+			}
+			first = false;
+			ctx.advance_to(out);
+			out = base::format(e, ctx);
+		}
+		return std::format_to(out, "]");
+	}
+};
+#endif // #if !defined(__cpp_lib_format_ranges) || __cpp_lib_format_ranges < 202207
+
+#endif // #ifndef KTEST2_DISABLE_FORMATTERS
 
 namespace ktest2 {
 
@@ -343,33 +373,33 @@ static bool tty = false;
 #define ANSI_RESET (tty ? "\x1b[0m" : "")
 
 static std::regex glob_to_regex(std::string_view glob) {
-    std::string re = "^";
-    for (size_t i = 0; i < glob.size(); ++i) {
+	std::string re = "^";
+	for (size_t i = 0; i < glob.size(); ++i) {
 		char c = glob[i];
 		if (c == '*' && i + 1 < glob.size() && glob[i + 1] == '*') {
 			re += ".*";
 			i += 1;
 			continue;
 		}
-        switch (c) {
-            case '*': 
+		switch (c) {
+			case '*': 
 				re += "[^/]*";
 				break;
-            case '?':
+			case '?':
 				re += "[^/]";
 				break;
-            case '.': case '+': case '(': case ')':
-            case '[': case ']': case '{': case '}':
-            case '^': case '$': case '\\': case '|':
-                re += '\\';
+			case '.': case '+': case '(': case ')':
+			case '[': case ']': case '{': case '}':
+			case '^': case '$': case '\\': case '|':
+				re += '\\';
 				re += c;
 				break;
-            default:
+			default:
 				re += c;
-        }
-    }
-    re += "$";
-    return std::regex{re};
+		}
+	}
+	re += "$";
+	return std::regex{re};
 }
 
 static void print_help(std::string_view exec_name) {
