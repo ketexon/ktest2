@@ -14,6 +14,18 @@
 	static ktest2::impl::TestRegistrar _ktest2_registrar { ktest2_tests::_ktest2_register_tests }; \
 	void ktest2_tests::_ktest2_register_tests()
 
+#ifndef KTEST2_DISABLE_FORMATTERS
+#include <cstddef>
+#include <format>
+
+template<>
+struct std::formatter<std::byte> : std::formatter<unsigned> {
+    auto format(std::byte b, auto& ctx) const {
+        return std::formatter<unsigned>::format(std::to_integer<unsigned>(b), ctx);
+    }
+};
+#endif
+
 namespace ktest2 {
 
 struct Path {
@@ -144,10 +156,13 @@ decltype(auto) printable(const U& x) {
 	return static_cast<const U&>(x);
 }
 
-template<class U> requires(!std::formattable<U, char>)
+template<class U>
 [[deprecated("Unprintable type")]]
-std::string_view printable(const U& x) {
-	return "<unprintable>";
+constexpr std::string_view unprintable() { return "<unprintable>"; }
+
+template<class U> requires(!std::formattable<U, char>)
+decltype(auto) printable(const U& x) {
+	return unprintable<U>();
 }
 
 } // namespace impl
