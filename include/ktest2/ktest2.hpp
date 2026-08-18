@@ -139,10 +139,15 @@ struct TestRegistrar {
 
 inline TestVisitor* test_visitor = nullptr;
 
-template<class U>
+template<class U> requires(std::formattable<U, char>)
 decltype(auto) printable(const U& x) {
-	if constexpr (std::formattable<U, char>) return (const U&)x;
-	else return std::string_view{"<unprintable>"};
+	return static_cast<const U&>(x);
+}
+
+template<class U> requires(!std::formattable<U, char>)
+[[deprecated("Unprintable type")]]
+std::string_view printable(const U& x) {
+	return "<unprintable>";
 }
 
 } // namespace impl
